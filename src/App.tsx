@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-route
 import { Layout } from './components/Layout';
 import DashboardPage from './pages/Dashboard';
 import Drivers from './pages/Drivers';
+import DriverMarket from './pages/DriverMarket';
 import Garage from './pages/Garage';
 import Facilities from './pages/Facilities';
 import Calendar from './pages/Calendar';
@@ -29,7 +30,7 @@ function AppContent() {
         setActiveTab('race');
         break;
       case 'market':
-        navigate('/drivers');
+        navigate('/driver-market');
         setActiveTab('market');
         break;
       case 'settings':
@@ -44,6 +45,7 @@ function AppContent() {
       <Routes>
         <Route path="/" element={<Dashboard onNavigate={handleNavigate} />} />
         <Route path="/drivers" element={<Drivers />} />
+        <Route path="/driver-market" element={<DriverMarket />} />
         <Route path="/garage" element={<Garage />} />
         <Route path="/facilities" element={<Facilities />} />
         <Route path="/calendar" element={<Calendar />} />

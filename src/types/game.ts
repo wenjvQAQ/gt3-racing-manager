@@ -1,21 +1,44 @@
 export type DriverRating = 'platinum' | 'gold' | 'silver' | 'bronze';
+export type DriverContractType = 'exclusive' | 'non-exclusive';
+export type DriverMarketType = 'available' | 'scout-pool' | 'rival-driver';
 
 export const generateId = (prefix: string): string => {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 };
 
-export interface DriverSkills {
-  technical: number;
-  stamina: number;
-  pressure: number;
-  wetSkill: number;
-  familiarity: number;
-}
-
 export interface DriverContract {
   signed: boolean;
   remainingRaces: number;
-  fee: number;
+  remainingSeasons: number;
+  salary: number;
+  signingFee: number;
+  exclusivity: DriverContractType;
+  isPayDriver: boolean;
+  payDriverSponsorship: number;
+  bonusQualifyingTop5: number;
+  bonusRaceTop3: number;
+  bonusRaceWin: number;
+  manufacturerBonus: number;
+}
+
+export interface DriverStats {
+  totalRaces: number;
+  wins: number;
+  podiums: number;
+  poles: number;
+  bestResult: number;
+  averagePosition: number;
+  totalPoints: number;
+}
+
+export interface DriverSkills {
+  pace: number;
+  consistency: number;
+  stamina: number;
+  pressure: number;
+  wetSkill: number;
+  feedback: number;
+  familiarity: Record<string, number>;
 }
 
 export interface Driver {
@@ -25,11 +48,15 @@ export interface Driver {
   age: number;
   rating: DriverRating;
   skills: DriverSkills;
-  salary: number;
-  willingness: number;
-  specialties: string[];
+  stats: DriverStats;
   contract: DriverContract;
+  currentTeam: string | null;
   fatigue: number;
+  maxStamina: number;
+  scoutLevel: number;
+  isScouted: boolean;
+  marketValue: number;
+  teamSuitability: number;
 }
 
 export interface CarManufacturer {
