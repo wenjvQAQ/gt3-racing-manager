@@ -90,6 +90,9 @@ interface GameStore extends GameState {
   availableCars: Car[];
   availableForPurchase: Car[];
   manufacturers: typeof MANUFACTURERS;
+  gameMode: 'fast' | 'full';
+  currentRound: number;
+  funds: number;
   
   setTeamName: (name: string) => void;
   advanceWeek: () => void;
@@ -116,6 +119,8 @@ interface GameStore extends GameState {
   runRace: (raceId: string) => void;
   advanceToNextSeason: () => void;
   isSeasonComplete: () => boolean;
+  setGameMode: (mode: 'fast' | 'full') => void;
+  saveGame: () => void;
   
   exportSave: () => void;
   importSave: (saveData: any) => void;
@@ -129,6 +134,24 @@ export const useGameStore = create<GameStore>()(
       availableCars: INITIAL_CARS,
       availableForPurchase: INITIAL_CARS,
       manufacturers: MANUFACTURERS,
+      gameMode: 'fast',
+      currentRound: 1,
+      funds: 750000,
+
+      setGameMode: (mode: 'fast' | 'full') => set({ gameMode: mode }),
+
+      saveGame: () => {
+        const state = get();
+        localStorage.setItem('gt3-quick-save', JSON.stringify({
+          currentSeason: state.currentSeason,
+          currentRaceWeek: state.currentRaceWeek,
+          team: state.team,
+          funds: state.funds,
+          reputation: state.reputation,
+          gameMode: state.gameMode,
+          seasonCalendar: state.seasonCalendar
+        }));
+      },
 
       setTeamName: (name: string) =>
         set((state) => ({
