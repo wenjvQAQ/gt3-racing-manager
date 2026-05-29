@@ -120,15 +120,16 @@ export const createTimelineEvents = (raceName: string): TimelineEvent[] => {
     },
     {
       id: generateId('timeline'),
-      name: '正赛',
+      name: '正赛（24小时耐力赛）',
       stage: 'race',
       phase: 'race',
       startTime: 555,
-      duration: 180,
+      duration: 1440,
       status: 'pending',
       canSkip: false,
       decisions: [
         createStartTireChoiceDecision(),
+        createDriverRotationDecision(),
         createPitStrategyDecision()
       ]
     },
@@ -375,30 +376,57 @@ function createStartTireChoiceDecision(): DecisionItem {
   };
 }
 
+function createDriverRotationDecision(): DecisionItem {
+  return {
+    id: generateId('decision'),
+    label: '车手轮换策略',
+    type: 'strategy',
+    description: '选择车手的轮换时间和顺序',
+    options: [
+      {
+        id: 'rotation_fast',
+        label: '快速轮换（每2小时）',
+        effects: { driverFatigue: -20, pitTime: 5, driverChangeCount: 12 }
+      },
+      {
+        id: 'rotation_standard',
+        label: '标准轮换（每3-4小时）',
+        effects: { driverFatigue: -10, pitTime: 0, driverChangeCount: 6 }
+      },
+      {
+        id: 'rotation_steady',
+        label: '保守轮换（每6小时）',
+        effects: { driverFatigue: 10, pitTime: -3, driverChangeCount: 4 }
+      }
+    ],
+    selectedOption: 'rotation_standard'
+  };
+}
+
 function createPitStrategyDecision(): DecisionItem {
   return {
     id: generateId('decision'),
     label: '进站策略',
     type: 'strategy',
-    description: '预设进站次数和轮胎选择',
+    description: '预设进站次数和轮胎选择（24小时耐力赛）',
     options: [
       {
-        id: 'strategy_1_stop',
-        label: '1停策略',
-        effects: { pitStops: 1, totalTime: -5, tireWear: 20 }
+        id: 'strategy_5_stops',
+        label: '5停策略',
+        effects: { pitStops: 5, totalTime: -8, tireWear: 30 }
       },
       {
-        id: 'strategy_2_stops',
-        label: '2停策略',
-        effects: { pitStops: 2, totalTime: 0, tireWear: 10 }
+        id: 'strategy_7_stops',
+        label: '7停策略',
+        effects: { pitStops: 7, totalTime: 0, tireWear: 15 }
       },
       {
-        id: 'strategy_3_stops',
-        label: '3停策略',
-        effects: { pitStops: 3, totalTime: 5, tireWear: 5 }
+        id: 'strategy_9_stops',
+        label: '9停策略',
+        effects: { pitStops: 9, totalTime: 5, tireWear: 8 }
       }
     ],
-    selectedOption: 'strategy_2_stops'
+    selectedOption: 'strategy_7_stops'
   };
 }
 

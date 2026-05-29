@@ -9,16 +9,17 @@ export const generateId = (prefix: string): string => {
 export interface DriverContract {
   signed: boolean;
   remainingRaces: number;
-  remainingSeasons: number;
-  salary: number;
-  signingFee: number;
-  exclusivity: DriverContractType;
-  isPayDriver: boolean;
-  payDriverSponsorship: number;
-  bonusQualifyingTop5: number;
-  bonusRaceTop3: number;
-  bonusRaceWin: number;
-  manufacturerBonus: number;
+  remainingSeasons?: number;
+  salary?: number;
+  signingFee?: number;
+  exclusivity?: DriverContractType;
+  isPayDriver?: boolean;
+  payDriverSponsorship?: number;
+  bonusQualifyingTop5?: number;
+  bonusRaceTop3?: number;
+  bonusRaceWin?: number;
+  manufacturerBonus?: number;
+  fee?: number; // 向后兼容
 }
 
 export interface DriverStats {
@@ -32,13 +33,14 @@ export interface DriverStats {
 }
 
 export interface DriverSkills {
-  pace: number;
-  consistency: number;
+  pace?: number;
+  consistency?: number;
   stamina: number;
   pressure: number;
   wetSkill: number;
-  feedback: number;
-  familiarity: Record<string, number>;
+  feedback?: number;
+  familiarity: number | Record<string, number>;
+  technical?: number; // 向后兼容
 }
 
 export interface Driver {
@@ -48,15 +50,19 @@ export interface Driver {
   age: number;
   rating: DriverRating;
   skills: DriverSkills;
-  stats: DriverStats;
+  stats?: DriverStats;
   contract: DriverContract;
-  currentTeam: string | null;
+  currentTeam?: string | null;
   fatigue: number;
-  maxStamina: number;
-  scoutLevel: number;
-  isScouted: boolean;
-  marketValue: number;
-  teamSuitability: number;
+  maxStamina?: number;
+  scoutLevel?: number;
+  isScouted?: boolean;
+  marketValue?: number;
+  teamSuitability?: number;
+  // 向后兼容的字段
+  salary?: number;
+  willingness?: number;
+  specialties?: string[];
 }
 
 export interface CarManufacturer {

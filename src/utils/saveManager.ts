@@ -1,4 +1,4 @@
-import { GameState } from '../stores/gameStore';
+import { GameState } from '../types/game';
 
 const DB_NAME = 'GT3RacingManagerDB';
 const DB_VERSION = 1;
