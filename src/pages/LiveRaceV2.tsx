@@ -17,6 +17,8 @@ import {
 } from '../types/track';
 import { simulateStep, simulateRace } from '../engine/simulation';
 import { createSPACircuit, createMonzaCircuit, createSimpleTrack } from '../utils/trackGenerator';
+import { RaceCommandCenter } from '../components/RaceCommandCenter';
+import { saveManager } from '../utils/saveManager';
 
 const LIVE_RACE_CONFIG: RaceSimulationConfig = {
   weather: { type: 'dry', rainIntensity: 0, trackTemperature: 25, airTemperature: 20 },
@@ -28,7 +30,7 @@ const LIVE_RACE_CONFIG: RaceSimulationConfig = {
 const LiveRaceV2: React.FC = () => {
   const { raceId } = useParams<{ raceId: string }>();
   const navigate = useNavigate();
-  const { seasonCalendar, team, runRace, currentSeason } = useGameStore();
+  const { seasonCalendar, team, runRace, currentSeason, saveGame } = useGameStore();
   
   const [timelineState, setTimelineState] = useState<TimelineState>({
     currentTime: 0,
@@ -48,7 +50,7 @@ const LiveRaceV2: React.FC = () => {
   const [showTelemetry, setShowTelemetry] = useState(true);
   const [selectedDataLayer, setSelectedDataLayer] = useState<'none' | 'tires' | 'performance' | 'fuel'>('none');
   const [cars, setCars] = useState<CarState[]>([]);
-  const [raceEvents, setRaceEvents] = useState<{time: number, message: string}[]>([]);
+  const [raceEvents, setRaceEvents] = useState<{time: number; message: string; type?: string}[]>([]);
   const [currentLap, setCurrentLap] = useState(1);
   const [totalLaps, setTotalLaps] = useState(10);
   const [selectedCarId, setSelectedCarId] = useState<string | undefined>();
@@ -56,7 +58,14 @@ const LiveRaceV2: React.FC = () => {
   
   const race = seasonCalendar.find(r => r.id === raceId);
   const trackRef = useRef<RaceTrack | null>(null);
+  const eventTimeRef = useRef(0);
   
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(console.error);
+    }
+  }, []);
+
   useEffect(() => {
     if (race) {
       const events = createTimelineEvents(race.name);
@@ -99,7 +108,7 @@ const LiveRaceV2: React.FC = () => {
       const interval = setInterval(() => {
         const weather: Weather = { type: 'dry', rainIntensity: 0, trackTemperature: 25, airTemperature: 20 };
         
-        let updatedCars = simulateStep(cars, trackRef.current!, weather, LIVE_RACE_CONFIG);
+        const updatedCars = simulateStep(cars, trackRef.current!, weather, LIVE_RACE_CONFIG);
         setCars(updatedCars);
         
         const leader = updatedCars.find(c => c.currentPosition === 1);
@@ -107,16 +116,50 @@ const LiveRaceV2: React.FC = () => {
           setCurrentLap(leader.lap);
         }
         
-        if (Math.random() < 0.02) {
-          const randomEvent = [
-            '工程师: 轮胎状态良好',
-            '工程师: 燃油消耗正常',
-            '车手: 赛车感觉很棒',
-            '工程师: 注意前方慢车'
-          ][Math.floor(Math.random() * 4)];
-          setRaceEvents(prev => [...prev.slice(-9), { time: Date.now(), message: randomEvent }]);
+        eventTimeRef.current += 5;
+        
+        if (Math.random() < 0.15) {
+          const events = [
+            { message: '车手: 赛车感觉很棒', type: 'radio' },
+            { message: '工程师: 轮胎状态良好', type: 'radio' },
+            { message: '工程师: 燃油消耗正常', type: 'radio' },
+            { message: '工程师: 注意前方慢车', type: 'radio' },
+            { message: '车队无线电: 保持当前节奏', type: 'radio' },
+          ];
+          
+          if (Math.random() < 0.1) {
+            const overtakeIdx = Math.floor(Math.random() * updatedCars.length);
+            const overtakeCar = updatedCars[overtakeIdx];
+            events.push({
+              message: `${overtakeCar.driverName} 在弯道超越了前车`,
+              type: 'overtake'
+            });
+          }
+          
+          if (Math.random() < 0.05) {
+            const pitstopCar = updatedCars[Math.floor(Math.random() * updatedCars.length)];
+            events.push({
+              message: `${pitstopCar.driverName} 进入维修站`,
+              type: 'pitstop'
+            });
+          }
+          
+          if (Math.random() < 0.02) {
+            const incidentCar = updatedCars[Math.floor(Math.random() * updatedCars.length)];
+            events.push({
+              message: `${incidentCar.driverName} 遭遇机械故障！`,
+              type: 'incident'
+            });
+          }
+          
+          const randomEvent = events[Math.floor(Math.random() * events.length)];
+          setRaceEvents(prev => [...prev.slice(-49), { 
+            time: eventTimeRef.current, 
+            message: randomEvent.message,
+            type: randomEvent.type
+          }]);
         }
-      }, 100 / speed);
+      }, Math.max(100, 500 / speed));
       
       return () => clearInterval(interval);
     }
@@ -256,9 +299,14 @@ const LiveRaceV2: React.FC = () => {
   
   const handleFinishRace = () => {
     if (race) {
+      saveGame();
       runRace(race.id);
       navigate('/');
     }
+  };
+
+  const handleExportSave = () => {
+    saveManager.downloadSave(1);
   };
   
   if (!race) {
@@ -295,15 +343,25 @@ const LiveRaceV2: React.FC = () => {
             <h1 className="text-white font-bold text-base md:text-lg truncate max-w-[200px]">{race.name}</h1>
             <p className="text-gray-400 text-xs">{race.track.name}, {race.track.country}</p>
           </div>
-          <button 
-            onClick={() => setShowMobileMenu(!showMobileMenu)}
-            className="text-white p-2 hover:bg-carbon-800 rounded-lg transition-colors md:hidden"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
-          <div className="hidden md:block w-10"></div>
+          <div className="flex gap-2">
+            <button 
+              onClick={handleExportSave}
+              className="text-white p-2 hover:bg-carbon-800 rounded-lg transition-colors"
+              title="导出存档"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+            </button>
+            <button 
+              onClick={() => setShowMobileMenu(!showMobileMenu)}
+              className="text-white p-2 hover:bg-carbon-800 rounded-lg transition-colors md:hidden"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+          </div>
         </div>
         
         <TimelineBar
@@ -385,6 +443,7 @@ const LiveRaceV2: React.FC = () => {
                   <option value={2}>2x</option>
                   <option value={4}>4x</option>
                   <option value={8}>8x</option>
+                  <option value={16}>16x</option>
                 </select>
                 
                 <button
@@ -399,7 +458,7 @@ const LiveRaceV2: React.FC = () => {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
               <div className="lg:col-span-3 order-2 lg:order-1">
                 <div className="bg-carbon-800 rounded-lg p-3">
-                  <h4 className="text-white font-semibold mb-3 text-sm">实时排名</h4>
+                  <h4 className="text-white font-semibold mb-3 text-sm">🏆 实时排名</h4>
                   <div className="space-y-2">
                     {cars.slice(0, 8).map((car, index) => (
                       <div 
@@ -420,49 +479,17 @@ const LiveRaceV2: React.FC = () => {
                             className="w-3 h-3 rounded-full" 
                             style={{ backgroundColor: car.teamColor }}
                           ></div>
-                          <span className="text-gray-300 text-xs truncate max-w-[100px]">{car.driverName}</span>
+                          <span className="text-gray-300 text-xs truncate max-w-[80px]">{car.driverName}</span>
                         </div>
                         <div className="text-right">
-                          <span className="text-gray-400 text-xs">{car.gapToLeader}</span>
+                          <span className={`text-xs font-mono ${car.gapToLeader === '0.000' ? 'text-yellow-400' : 'text-gray-400'}`}>
+                            {car.gapToLeader}
+                          </span>
                         </div>
                       </div>
                     ))}
                   </div>
                 </div>
-                
-                {selectedCarId && playerCar && (
-                  <div className="mt-4 bg-carbon-800 rounded-lg p-3">
-                    <h4 className="text-white font-semibold mb-3 text-sm">遥测数据</h4>
-                    <div className="grid grid-cols-2 gap-3 text-xs">
-                      <div className="bg-carbon-700 rounded p-2">
-                        <div className="text-gray-400">轮胎状态</div>
-                        <div className="text-white font-bold">
-                          {Math.round((playerCar.tireCondition.frontLeft + playerCar.tireCondition.frontRight + playerCar.tireCondition.rearLeft + playerCar.tireCondition.rearRight) / 4 * 100)}%
-                        </div>
-                      </div>
-                      <div className="bg-carbon-700 rounded p-2">
-                        <div className="text-gray-400">燃油</div>
-                        <div className="text-white font-bold">{Math.round(playerCar.fuelLoad)}kg</div>
-                      </div>
-                      <div className="bg-carbon-700 rounded p-2">
-                        <div className="text-gray-400">速度</div>
-                        <div className="text-white font-bold">{Math.round(playerCar.speed * 3.6)}km/h</div>
-                      </div>
-                      <div className="bg-carbon-700 rounded p-2">
-                        <div className="text-gray-400">圈数</div>
-                        <div className="text-white font-bold">{playerCar.lap}</div>
-                      </div>
-                      <div className="bg-carbon-700 rounded p-2">
-                        <div className="text-gray-400">最佳圈</div>
-                        <div className="text-white font-bold">{playerCar.bestLapTime?.toFixed(2) || '--'}s</div>
-                      </div>
-                      <div className="bg-carbon-700 rounded p-2">
-                        <div className="text-gray-400">车损</div>
-                        <div className="text-white font-bold">{Math.round(playerCar.damage * 100)}%</div>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </div>
               
               <div className="lg:col-span-6 order-1 lg:order-2">
@@ -529,105 +556,15 @@ const LiveRaceV2: React.FC = () => {
               </div>
               
               <div className="lg:col-span-3 order-3">
-                <div className="bg-carbon-800 rounded-lg p-3">
-                  <div className="flex gap-2 mb-3">
-                    <button
-                      onClick={() => setShowTelemetry(true)}
-                      className={`flex-1 px-3 py-2 rounded-lg text-sm font-semibold
-                        ${showTelemetry
-                          ? 'bg-fuel-gold text-carbon-950'
-                          : 'bg-carbon-700 text-white hover:bg-carbon-600'
-                        }
-                      `}
-                    >
-                      遥测
-                    </button>
-                    <button
-                      onClick={() => setShowTelemetry(false)}
-                      className={`flex-1 px-3 py-2 rounded-lg text-sm font-semibold
-                        ${!showTelemetry
-                          ? 'bg-fuel-gold text-carbon-950'
-                          : 'bg-carbon-700 text-white hover:bg-carbon-600'
-                        }
-                      `}
-                    >
-                      指令
-                    </button>
-                  </div>
-                  
-                  {showTelemetry && playerCar && (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-400">轮胎磨损</span>
-                        <div className="flex gap-1">
-                          {['frontLeft', 'frontRight', 'rearLeft', 'rearRight'].map((tire) => (
-                            <div 
-                              key={tire}
-                              className="w-8 h-1.5 bg-carbon-600 rounded-full overflow-hidden"
-                            >
-                              <div 
-                                className={`h-full transition-all ${playerCar.tireCondition[tire as keyof typeof playerCar.tireCondition] > 0.5 ? 'bg-green-500' : playerCar.tireCondition[tire as keyof typeof playerCar.tireCondition] > 0.25 ? 'bg-yellow-500' : 'bg-red-500'}`}
-                                style={{ width: `${playerCar.tireCondition[tire as keyof typeof playerCar.tireCondition] * 100}%` }}
-                              ></div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-400">燃油量</span>
-                        <div className="w-24 h-1.5 bg-carbon-600 rounded-full overflow-hidden">
-                          <div 
-                            className={`h-full transition-all ${playerCar.fuelLoad > 50 ? 'bg-blue-500' : playerCar.fuelLoad > 25 ? 'bg-yellow-500' : 'bg-red-500'}`}
-                            style={{ width: `${playerCar.fuelLoad}%` }}
-                          ></div>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-400">车手疲劳</span>
-                        <div className="w-24 h-1.5 bg-carbon-600 rounded-full overflow-hidden">
-                          <div 
-                            className={`h-full transition-all ${playerCar.driverFatigue < 0.3 ? 'bg-green-500' : playerCar.driverFatigue < 0.6 ? 'bg-yellow-500' : 'bg-red-500'}`}
-                            style={{ width: `${playerCar.driverFatigue * 100}%` }}
-                          ></div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {!showTelemetry && (
-                    <div className="space-y-2">
-                      <button className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold">
-                        🔧 进站
-                      </button>
-                      <button className="w-full px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg text-sm font-semibold">
-                        ⚡ 推进模式
-                      </button>
-                      <button className="w-full px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-semibold">
-                        🛡️ 保胎模式
-                      </button>
-                      <button className="w-full px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-semibold">
-                        🔥 超车
-                      </button>
-                      <button className="w-full px-4 py-2 bg-carbon-700 hover:bg-carbon-600 text-white rounded-lg text-sm font-semibold">
-                        📍 保持位置
-                      </button>
-                    </div>
-                  )}
-                </div>
-                
-                <div className="mt-4 bg-carbon-800 rounded-lg p-3">
-                  <h4 className="text-white font-semibold mb-3 text-sm">比赛消息</h4>
-                  <div className="space-y-2 max-h-40 overflow-y-auto">
-                    {raceEvents.map((event, index) => (
-                      <div key={index} className="text-gray-300 text-xs bg-carbon-700 p-2 rounded">
-                        {event.message}
-                      </div>
-                    ))}
-                    {raceEvents.length === 0 && (
-                      <div className="text-gray-500 text-xs text-center py-4">比赛开始，等待消息...</div>
-                    )}
-                  </div>
-                </div>
+                <RaceCommandCenter
+                  playerCar={playerCar || null}
+                  allCars={cars}
+                  isPaused={isPaused}
+                  onTogglePause={() => setIsPaused(!isPaused)}
+                  onSpeedChange={setSpeed}
+                  speed={speed}
+                  raceEvents={raceEvents}
+                />
               </div>
             </div>
           </div>
